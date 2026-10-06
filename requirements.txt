@@ -1,0 +1,28 @@
+# Core — ARIA v2 needs these
+httpx
+numpy
+pillow
+psutil
+requests
+
+# Vision / UI
+opencv-python
+
+# Speech in / out
+SpeechRecognition
+pyttsx3
+
+# Robot hardware bridge
+pyserial
+
+# Desktop control (Windows)
+pyautogui
+pygetwindow
+pywin32
+
+# MCP bridge
+mcp
+
+# Web extras
+duckduckgo-search
+cryptography

@@ -1,0 +1,17 @@
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Secrets — never commit
+aria_keys.json
+.env
+
+# Runtime state (created on first run)
+data/
+workspace/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
