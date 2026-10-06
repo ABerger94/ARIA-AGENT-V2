@@ -1,6 +1,8 @@
 """ARIA v2 vision subsystem.
 
 capture.py   — screen + webcam frame grabbers (JPEG bytes, never raise).
+phone_cam.py — in-memory inbox for Phone Bridge camera uploads
+               (publish_phone_frame / get_phone_frame_jpeg).
 pipeline.py  — native Ollama /api/chat description; image bytes never touch
                the /v1 chain. The agent loop receives folded-in text via
                agent/prompt.py's fold_vision_description().
@@ -15,6 +17,12 @@ from .capture import (
     grab_screen_if_changed,
     grab_webcam,
     reset_screen_hash,
+)
+from .phone_cam import (
+    describe_phone_view,
+    get_phone_frame_jpeg,
+    get_phone_frame_status,
+    publish_phone_frame,
 )
 from .pipeline import (
     describe_native,
@@ -31,6 +39,10 @@ __all__ = [
     "grab_screen_if_changed",
     "grab_webcam",
     "reset_screen_hash",
+    "describe_phone_view",
+    "get_phone_frame_jpeg",
+    "get_phone_frame_status",
+    "publish_phone_frame",
     "describe_native",
     "last_diagnosis",
     "last_error",

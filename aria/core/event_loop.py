@@ -10,6 +10,7 @@ Import rule: NO import statement inside any function or indented block.
 
 import asyncio
 import inspect
+import os
 import sys
 
 from aria.core.optimport import optional_attr as _optional_attr
@@ -42,10 +43,14 @@ HAS_SCHEDULER = run_pending is not None
 HAS_CONSOLE = sys.stdin.isatty()
 
 
-async def run(state, config):
-    """Owns the asyncio loop. Spawns render, agent, console, scheduler."""
+async def run(state, config, headless=False):
+    """Owns the asyncio loop. Spawns render, agent, console, scheduler.
+
+    headless=True skips the visor window entirely (--headless CLI flag):
+    the render task idles instead of touching cv2.imshow.
+    """
     turn_lock = asyncio.Lock()
-    render_task = asyncio.create_task(_render_loop(state, config))
+    render_task = asyncio.create_task(_render_loop(state, config, headless))
     agent_task = asyncio.create_task(_agent_loop(state, config, turn_lock))
     console_task = asyncio.create_task(_console_loop(state, config, turn_lock))
     sched_task = asyncio.create_task(_scheduler_loop(state, config))
@@ -82,10 +87,27 @@ async def _handle_text(text: str, state, config, turn_lock, source: str) -> None
             pass
 
 
-async def _render_loop(state, config):
-    """visor.draw_frame() -> cv2.imshow at ~fps. cv2.waitKey lives here only."""
-    if VisorRenderer is None or cv2 is None:
-        # Headless: idle without failing the loop.
+def _display_available() -> bool:
+    """True when a windowing system is plausibly present.
+
+    cv2 importing fine does NOT mean cv2.imshow works: the headless
+    opencv build (and display-less boxes) raise cv2.error on imshow.
+    """
+    if sys.platform.startswith("linux"):
+        if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+            return False
+    return True
+
+
+async def _render_loop(state, config, headless=False):
+    """visor.draw_frame() -> cv2.imshow at ~fps. cv2.waitKey lives here only.
+
+    Degrades to an idle loop (never raises) when headless, when the visor
+    or cv2 is unavailable, or when no display exists. If imshow fails at
+    runtime (headless opencv build), the GUI path is abandoned permanently
+    instead of killing the event loop.
+    """
+    if headless or VisorRenderer is None or cv2 is None or not _display_available():
         while True:
             await asyncio.sleep(1)
         return
@@ -94,7 +116,18 @@ async def _render_loop(state, config):
     frame_delay = 1.0 / max(1, getattr(config, "fps", 60))
     while True:
         frame = await asyncio.to_thread(renderer.draw_frame)
-        cv2.imshow("ARIA", frame)
+        try:
+            cv2.imshow("ARIA", frame)
+        except Exception:
+            # GUI turned out to be unusable (e.g. opencv-python-headless):
+            # park the render task instead of crashing the whole loop.
+            try:
+                cv2.destroyAllWindows()
+            except Exception:
+                pass
+            while True:
+                await asyncio.sleep(1)
+            return
         key = cv2.waitKey(1) & 0xFF
         _route_key(key, state, renderer)
         await asyncio.sleep(max(0.0, frame_delay))

@@ -41,6 +41,7 @@ _KEY_PROMPTS = [
     ("GROQ_API_KEY", "Groq API key (fallback provider, optional)"),
     ("OPENROUTER_API_KEY", "OpenRouter API key (fallback provider, optional)"),
     ("MISTRAL_API_KEY", "Mistral API key (fallback provider, optional)"),
+    ("GEMINI_API_KEY", "Gemini API key (Google AI Studio — v1's provider, works as a chain leg; optional)"),
     ("BRIDGE_TOKEN", "Phone bridge token (any long random string — optional; the bridge stays locked without one)"),
 ]
 

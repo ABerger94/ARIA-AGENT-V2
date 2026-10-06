@@ -9,8 +9,8 @@ and ChatGPT Desktop are not.
 Requires Python 3.11+ on Windows 11.
 
 ```cmd
-git clone https://github.com/ABerger94/ARIA-AGENT-V2.git
-cd ARIA-AGENT-V2
+git clone https://github.com/aberger94/aria-agent-v2.git
+cd aria-agent-v2
 pip install -r requirements.txt
 python main.py
 ```
@@ -26,19 +26,20 @@ aria/
   core/        config, typed errors, bounded state, async event loop
   agent/       router (task classifier), chain (provider failover), prompt
   tools/       registry, sandbox, MCP bridge, 4 toolkits (files/system/memory/web)
-  vision/      screen/webcam capture, native Ollama vision pre-pass
+  vision/      screen/webcam capture, phone-camera inbox, native Ollama vision pre-pass
   ui/          PIL-rendered HUD (Roboto Mono), 7-tab OPS overlay, pixel avatar
   memory/      SQLite store + local-embedding semantic search + incident learning
   speech/      voice input / TTS output
   scheduler.py persistent cron-like jobs
   phone_bridge.py  LAN phone bridge (explicit start, never auto-binds)
+arduino/       Nano firmware: pan/tilt head + wheels + animated SH1106 OLED face
 tests/         headless-safe unit + integration suites
-docs/          design scaffolds the build was written from
+docs/          design scaffolds the build was written from, robot body build guide
 ```
 
 ## Key behaviors
 
-- **Provider chain**: ollama_cloud → groq → openrouter → mistral, with 429
+- **Provider chain**: ollama_cloud → groq → openrouter → mistral → gemini, with 429
   quarantine, long quarantine on 401/403, and honest all-down reporting.
 - **Role routing**: per-turn classifier sends code work to the code model;
   vision goes through the native describe-and-fold pre-pass, never the chain.

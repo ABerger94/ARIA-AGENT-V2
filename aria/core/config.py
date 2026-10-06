@@ -12,7 +12,7 @@ from typing import Dict, List
 # Repo root: <root>/aria/core/config.py -> <root>
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-_KNOWN_PROVIDERS = ("ollama_cloud", "groq", "openrouter", "mistral")
+_KNOWN_PROVIDERS = ("ollama_cloud", "groq", "openrouter", "mistral", "gemini")
 
 
 @dataclass(frozen=True)
@@ -63,7 +63,7 @@ def _clean_key(value) -> str:
 @dataclass
 class Config:
     provider_order: List[str] = field(
-        default_factory=lambda: ["ollama_cloud", "groq", "openrouter", "mistral"]
+        default_factory=lambda: ["ollama_cloud", "groq", "openrouter", "mistral", "gemini"]
     )
     default_model: str = "gpt-oss:120b"
     code_model: str = "qwen3-coder:480b-cloud"
@@ -113,6 +113,14 @@ class Config:
                 "https://api.mistral.ai/v1",
                 _clean_key(k.get("MISTRAL_API_KEY")),
                 _clean_key(k.get("MISTRAL_MODEL")) or "mistral-small-latest",
+            ),
+            "gemini": (
+                # Google's OpenAI-compatible endpoint: the chain's
+                # /chat/completions + Bearer auth works unchanged.
+                # (v1's provider — same GEMINI_API_KEY v1 used.)
+                "https://generativelanguage.googleapis.com/v1beta/openai",
+                _clean_key(k.get("GEMINI_API_KEY")),
+                _clean_key(k.get("GEMINI_MODEL")) or "gemini-3.8-flash",
             ),
         }
         specs = []

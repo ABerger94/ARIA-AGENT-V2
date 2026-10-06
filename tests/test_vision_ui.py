@@ -348,9 +348,18 @@ class OpsTests(unittest.TestCase):
             self.assertEqual(frame.shape, (720, 1280, 3))
 
     def test_sensor_fallbacks_psutil_missing(self):
-        # psutil is genuinely absent in this env: every sensor must carry
-        # an install hint and must NOT fabricate a gauge.
-        sensors = read_sensors()
+        # Simulate psutil being unavailable instead of depending on the
+        # test environment: every sensor must carry an install hint and
+        # must NOT fabricate a gauge. (psutil ships in requirements.txt,
+        # so a real install would fail the old environment-dependent
+        # version of this test.)
+        import aria.ui.ops as ops_mod
+        saved_psutil = ops_mod.psutil
+        ops_mod.psutil = None
+        try:
+            sensors = read_sensors()
+        finally:
+            ops_mod.psutil = saved_psutil
         for name in ("cpu", "ram", "disk"):
             s = sensors[name]
             self.assertFalse(s["ok"], name)

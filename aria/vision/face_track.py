@@ -25,11 +25,13 @@ import time
 from aria.core.optimport import optional_module as _optional_module
 from aria.tools.hardware_proto import clamp_servo
 from aria.vision.capture import body_camera_source
+from aria.vision.phone_cam import get_phone_frame_jpeg
 
 log = logging.getLogger("aria.vision.face_track")
 
 # --- guarded optional dep (column 0; never indented) -----------------------
 cv2 = _optional_module("cv2")
+np = _optional_module("numpy")
 HAS_CV2 = cv2 is not None
 
 FACE_TRACKING: bool = False
@@ -70,7 +72,18 @@ def _default_capture_frame():
     if cv2 is None:
         return None
     try:
-        cap = cv2.VideoCapture(body_camera_source())
+        src = body_camera_source()
+        if src == "bridge":
+            # Phone Bridge uploads: decode the latest JPEG directly.
+            if np is None:
+                return None
+            jpg = get_phone_frame_jpeg()
+            if not jpg:
+                return None
+            frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8),
+                                 cv2.IMREAD_COLOR)
+            return frame
+        cap = cv2.VideoCapture(src)
         try:
             if not cap.isOpened():
                 return None

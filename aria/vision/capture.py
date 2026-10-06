@@ -23,6 +23,8 @@ import time
 
 from aria.core.optimport import optional_module as _optional_module
 
+from aria.vision.phone_cam import get_phone_frame_jpeg as _get_phone_frame_jpeg
+
 # --- guarded optional deps (column 0; never indented) ----------------------
 cv2 = _optional_module("cv2")
 HAS_CV2 = cv2 is not None
@@ -43,15 +45,20 @@ _SCREEN_LAST: float | None = None
 _CAM_LAST: float | None = None
 
 # Body camera source (v1 ARIA_BODY_CAMERA parity): a USB camera index
-# (int), a network stream URL (str), e.g. an IP-webcam phone URL.
-# v1 also supported "bridge" (Phone Bridge uploads); v2 has no bridge
-# page, so "bridge" is not a source here.
+# (int), a network stream URL (str) e.g. an IP-webcam phone URL, or the
+# string "bridge" for the Phone Bridge page's uploaded frames
+# (aria/vision/phone_cam.py).
 _BODY_CAMERA_RAW = os.environ.get("ARIA_BODY_CAMERA", "0").strip()
 
 
 def body_camera_source():
-    """USB camera index (int) or network stream URL (str). Never raises."""
+    """USB camera index (int), network stream URL (str), or "bridge".
+
+    Never raises.
+    """
     raw = str(_BODY_CAMERA_RAW or "0").strip()
+    if raw.lower() == "bridge":
+        return "bridge"
     if raw.lower().startswith(("http://", "https://")):
         return raw
     try:
@@ -65,8 +72,10 @@ _body_camera_source = body_camera_source
 
 
 def body_camera_label() -> str:
-    """Short human label: 'cam N' or 'net' (v1 body_camera_label parity)."""
+    """Short human label: 'cam N', 'net', or 'bridge' (v1 parity)."""
     src = _body_camera_source()
+    if src == "bridge":
+        return "bridge"
     if isinstance(src, str):
         return "net"
     return f"cam {src}"
@@ -121,13 +130,24 @@ def reset_screen_hash() -> None:
 def grab_webcam() -> bytes | None:
     """Capture a fresh webcam frame as JPEG bytes. None when unavailable.
 
-    Uses the ARIA_BODY_CAMERA source (USB index or http(s) stream URL).
+    Uses the ARIA_BODY_CAMERA source: USB index, http(s) stream URL, or
+    "bridge" (latest frame uploaded by the Phone Bridge page).
     """
     global _CAM_LAST
+    src = _body_camera_source()
+    if src == "bridge":
+        # Phone Bridge uploads are already JPEG bytes; no cv2 needed.
+        try:
+            jpg = _get_phone_frame_jpeg()
+        except Exception:
+            return None
+        if jpg:
+            _CAM_LAST = time.time()
+        return jpg
     if cv2 is None:
         return None
     try:
-        cap = cv2.VideoCapture(_body_camera_source())
+        cap = cv2.VideoCapture(src)
         try:
             if not cap.isOpened():
                 return None

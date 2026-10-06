@@ -42,8 +42,8 @@ class TestProviderTable(unittest.TestCase):
         for k in list(os.environ):
             if k.endswith(("_KEY", "_MODEL", "CHAIN", "HOST")):
                 if k in ("OLLAMA_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY",
-                         "MISTRAL_API_KEY", "GROQ_MODEL", "OPENROUTER_MODEL",
-                         "MISTRAL_MODEL", "PROVIDER_CHAIN", "OLLAMA_CODE_MODEL",
+                         "MISTRAL_API_KEY", "GEMINI_API_KEY", "GROQ_MODEL", "OPENROUTER_MODEL",
+                         "MISTRAL_MODEL", "GEMINI_MODEL", "PROVIDER_CHAIN", "OLLAMA_CODE_MODEL",
                          "OLLAMA_VISION_MODEL", "OLLAMA_DEFAULT_MODEL"):
                     os.environ.pop(k, None)
 
@@ -51,16 +51,17 @@ class TestProviderTable(unittest.TestCase):
         restore = _patch_env({
             "OLLAMA_API_KEY": "stub-ollama", "GROQ_API_KEY": "stub-groq",
             "OPENROUTER_API_KEY": "stub-openrouter", "MISTRAL_API_KEY": "stub-mistral",
+            "GEMINI_API_KEY": "stub-gemini",
         })
         try:
             specs = Config().providers()
         finally:
             restore()
-        self.assertEqual(len(specs), 4)
+        self.assertEqual(len(specs), 5)
         self.assertTrue(all(isinstance(s, ProviderSpec) for s in specs))
         self.assertEqual(
             [s.name for s in specs],
-            ["ollama_cloud", "groq", "openrouter", "mistral"],
+            ["ollama_cloud", "groq", "openrouter", "mistral", "gemini"],
         )
 
     def test_endpoints_are_per_provider_literal(self):
@@ -73,6 +74,8 @@ class TestProviderTable(unittest.TestCase):
         self.assertEqual(by_name["groq"].base_url, "https://api.groq.com/openai/v1")
         self.assertEqual(by_name["openrouter"].base_url, "https://openrouter.ai/api/v1")
         self.assertEqual(by_name["mistral"].base_url, "https://api.mistral.ai/v1")
+        self.assertEqual(by_name["gemini"].base_url,
+                         "https://generativelanguage.googleapis.com/v1beta/openai")
         # No string interpolation: template braces never appear.
         for s in by_name.values():
             self.assertNotIn("{provider}", s.base_url)
@@ -126,6 +129,26 @@ class TestProviderTable(unittest.TestCase):
             self.assertEqual(cfg.code_model, "custom-code-tag")
         finally:
             restore()
+
+    def test_gemini_leg_v1_parity(self):
+        # Gemini (v1's provider) rides the chain via Google's
+        # OpenAI-compatible endpoint; default model matches v1.
+        restore = _patch_env({"GEMINI_API_KEY": "stub-gemini"})
+        try:
+            by_name = {s.name: s for s in Config().providers()}
+        finally:
+            restore()
+        self.assertEqual(by_name["gemini"].api_key, "stub-gemini")
+        self.assertEqual(by_name["gemini"].model, "gemini-3.8-flash")
+
+    def test_gemini_model_override(self):
+        restore = _patch_env({"GEMINI_API_KEY": "x",
+                              "GEMINI_MODEL": "gemini-2.5-flash"})
+        try:
+            by_name = {s.name: s for s in Config().providers()}
+        finally:
+            restore()
+        self.assertEqual(by_name["gemini"].model, "gemini-2.5-flash")
 
 
 class TestErrors(unittest.TestCase):
@@ -274,6 +297,70 @@ class TestEventLoopImports(unittest.TestCase):
         self.assertTrue(hasattr(el, "HAS_CV2"))
         self.assertEqual(el.HAS_CV2, el.cv2 is not None)
         self.assertEqual(el.HAS_VISOR, el.VisorRenderer is not None)
+
+
+class TestRenderLoopHeadless(unittest.TestCase):
+    """--headless (and display-less boxes) must never touch cv2.imshow."""
+
+    def test_render_loop_headless_idles_without_imshow(self):
+        import asyncio
+        calls = []
+        real_cv2 = el.cv2
+
+        class FakeCv2:
+            def imshow(self, *a):
+                calls.append(a)
+                raise AssertionError("imshow must not be called headless")
+
+        el.cv2 = FakeCv2()
+        try:
+            async def probe():
+                task = asyncio.create_task(el._render_loop(None, None, headless=True))
+                await asyncio.sleep(0.05)
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            asyncio.run(probe())
+        finally:
+            el.cv2 = real_cv2
+        self.assertEqual(calls, [])
+
+    def test_display_available_false_without_display_vars(self):
+        import os
+        if not sys.platform.startswith("linux"):
+            self.skipTest("linux-only display check")
+        saved = {k: os.environ.pop(k, None)
+                 for k in ("DISPLAY", "WAYLAND_DISPLAY")}
+        try:
+            self.assertFalse(el._display_available())
+        finally:
+            for k, v in saved.items():
+                if v is not None:
+                    os.environ[k] = v
+
+    def test_render_loop_no_display_idles(self):
+        import asyncio
+        import os
+        if not sys.platform.startswith("linux"):
+            self.skipTest("linux-only display check")
+        saved = {k: os.environ.pop(k, None)
+                 for k in ("DISPLAY", "WAYLAND_DISPLAY")}
+        try:
+            async def probe():
+                task = asyncio.create_task(el._render_loop(None, None))
+                await asyncio.sleep(0.05)
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            asyncio.run(probe())  # must not raise
+        finally:
+            for k, v in saved.items():
+                if v is not None:
+                    os.environ[k] = v
 
 
 if __name__ == "__main__":

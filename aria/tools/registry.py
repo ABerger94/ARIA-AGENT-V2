@@ -80,6 +80,7 @@ RISKY_TOOLS = frozenset({
     "mcp_connect",
     "mcp_disconnect",
     "mcp_remove_server",
+    "provider_keys",  # writes API keys to disk
     "drive_wheels",
     "move_head_servos",
     "body_stop",

@@ -1449,6 +1449,53 @@ def bridge_token(args: Dict[str, Any]) -> str:
     return "Your bridge token is set. Enter it on the phone bridge login page."
 
 
+# Provider key env-var names, in chain order (aria/core/config.py parity).
+_PROVIDER_KEY_ENV = {
+    "ollama_cloud": "OLLAMA_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "mistral": "MISTRAL_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+}
+
+
+def _mask_key(k: str) -> str:
+    k = (k or "").strip()
+    if len(k) <= 8:
+        return "****"
+    return k[:4] + "..." + k[-2:]
+
+
+def provider_keys(args: Dict[str, Any]) -> str:
+    """Manage provider API keys: masked status, or add one.
+
+    v1's gemini_keys tool, generalized to the whole failover chain.
+    Keys are stored in ~/workspace/aria-v2/aria_keys.json (gitignored,
+    never leaves the machine). Status output is masked.
+    """
+    a = (args or {})
+    action = str(a.get("action", "status")).lower().strip()
+    if action == "status":
+        lines = []
+        for provider, env_name in _PROVIDER_KEY_ENV.items():
+            k = _get_key(env_name)
+            state = f"set ({_mask_key(k)})" if k else "not set"
+            lines.append(f"  {provider}: {state}")
+        return "Provider API keys:\n" + "\n".join(lines)
+    if action == "add":
+        provider = str(a.get("provider", "")).lower().strip()
+        key = str(a.get("key", "")).strip()
+        if provider not in _PROVIDER_KEY_ENV:
+            return ("Unknown provider '%s'. Choose one of: %s."
+                    % (provider, ", ".join(_PROVIDER_KEY_ENV)))
+        if len(key) < 12:
+            return "That key looks too short (need 12+ characters). Not added."
+        _set_key(_PROVIDER_KEY_ENV[provider], key)
+        return (f"Added {provider} key ({_mask_key(key)}). "
+                "It joins the failover chain on the next turn.")
+    return f"Unknown action '{action}'. Use 'status' or 'add'."
+
+
 def _grouped_commands() -> str:
     groups = [
         ("Memory", ["save_memory", "search_memory", "forget_memory", "journal_write"]),
@@ -1851,6 +1898,8 @@ SCHEMAS = [
     _schema("face_tracking", "Turn camera face-tracking on/off.",
             {"on": _S("boolean")}),
     _schema("bridge_token", "Shows the phone-bridge login token status."),
+    _schema("provider_keys", "Manage provider API keys: 'status' shows masked key state per provider; 'add' stores a key.",
+            {"action": _S("string"), "provider": _S("string"), "key": _S("string")}),
     _schema("show_commands", "Shows the on-screen commands reference: every tool, grouped, with descriptions."),
     _schema("hide_commands", "Hides the on-screen commands reference panel."),
     _schema("load_toolkit", "Unlock a toolkit's tools. Call with a toolkit name, then use its tools on the next turn.",
@@ -1886,7 +1935,7 @@ _FUNCS = [
     self_heal_diagnose, describe_camera, read_screen, take_photo,
     set_recurring_task, list_scheduled_tasks, cancel_scheduled_task,
     manage_autonomous_goal, move_head_servos, drive_wheels, body_stop,
-    body_status, face_tracking, bridge_token, show_commands, hide_commands, load_toolkit,
+    body_status, face_tracking, bridge_token, provider_keys, show_commands, hide_commands, load_toolkit,
     routine_record_start, routine_record_stop, run_routine,
     list_routines, delete_routine, describe_routine, trust_routine,
     untrust_routine, set_persona, list_personas, get_persona,

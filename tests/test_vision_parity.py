@@ -109,8 +109,22 @@ class BodyCameraSourceTests(unittest.TestCase):
         self.assertEqual(body_camera_label(), "net")
 
     def test_garbage_falls_back_to_zero(self):
-        capture._BODY_CAMERA_RAW = "bridge"  # v1-only; no bridge page in v2
-        self.assertEqual(body_camera_source(), 0)
+        saved = capture._BODY_CAMERA_RAW
+        capture._BODY_CAMERA_RAW = "garbage!!"
+        try:
+            self.assertEqual(body_camera_source(), 0)
+        finally:
+            capture._BODY_CAMERA_RAW = saved
+
+    def test_bridge_source(self):
+        # "bridge" selects the Phone Bridge camera uploads (v1 parity).
+        saved = capture._BODY_CAMERA_RAW
+        capture._BODY_CAMERA_RAW = "bridge"
+        try:
+            self.assertEqual(body_camera_source(), "bridge")
+            self.assertEqual(body_camera_label(), "bridge")
+        finally:
+            capture._BODY_CAMERA_RAW = saved
 
     def test_get_vision_status_keys(self):
         status = get_vision_status()
@@ -214,9 +228,16 @@ class FaceTrackTests(unittest.TestCase):
             ft.cv2 = saved_cv2
 
     def test_loop_exits_immediately_without_cv2(self):
-        # Must return, not hang: cv2 is genuinely absent here.
-        self.assertIsNone(ft.cv2)
-        ft.face_track_loop()  # returns immediately
+        # Must return, not hang when cv2 is unavailable. Simulate the
+        # missing dependency explicitly instead of depending on the
+        # test environment (cv2 ships in requirements.txt, so a real
+        # install would fail the old environment-dependent version).
+        saved_cv2 = ft.cv2
+        ft.cv2 = None
+        try:
+            ft.face_track_loop()  # returns immediately
+        finally:
+            ft.cv2 = saved_cv2
 
 
 if __name__ == "__main__":

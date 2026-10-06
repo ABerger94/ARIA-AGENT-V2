@@ -79,19 +79,23 @@ def main(argv=None):
         for p in problems:
             print(f"  - {p}")
             state.log_event("self_check", {"problem": p})  # HUD reads the ring
-    _greet()
-    asyncio.run(run(state, config))
+    _greet(interactive=sys.stdin.isatty() and not args.headless)
+    asyncio.run(run(state, config, headless=args.headless))
 
 
-def _greet() -> None:
+def _greet(interactive: bool = True) -> None:
     """Startup greeting: say something, and say how to use her. Never raises."""
     try:
-        print("[ARIA v2] Online. Type in this window and press Enter to talk to me.",
-              flush=True)
-        print("[ARIA v2] If your mic is connected, you can also just speak.",
-              flush=True)
-        print("[ARIA v2] Keys: O = OPS overlay | 1-7 = switch tabs | "
-              "H = commands | ESC = close overlay", flush=True)
+        if interactive:
+            print("[ARIA v2] Online. Type in this window and press Enter to talk to me.",
+                  flush=True)
+            print("[ARIA v2] If your mic is connected, you can also just speak.",
+                  flush=True)
+            print("[ARIA v2] Keys: O = OPS overlay | 1-7 = switch tabs | "
+                  "H = commands | ESC = close overlay", flush=True)
+        else:
+            print("[ARIA v2] Online (headless — no console input, no window).",
+                  flush=True)
         if _speak is not None:
             threading.Thread(target=_speak, args=("ARIA v2 online.",),
                              daemon=True).start()

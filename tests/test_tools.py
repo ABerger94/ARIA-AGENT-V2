@@ -316,5 +316,50 @@ class TestHonestDegradation(unittest.TestCase):
         self.assertTrue(out.startswith("Memory saved") or out.startswith("[memory"))
 
 
+class TestProviderKeys(unittest.TestCase):
+    """provider_keys: masked status + add (v1 gemini_keys parity, generalized)."""
+
+    def setUp(self):
+        import aria.tools.toolkits.web as web_mod
+        self.web = web_mod
+        self._saved_file = web_mod._KEYS_FILE
+        self._tmp = tempfile.mkdtemp()
+        web_mod._KEYS_FILE = os.path.join(self._tmp, "aria_keys.json")
+
+    def tearDown(self):
+        self.web._KEYS_FILE = self._saved_file
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_status_empty(self):
+        out = self.web.provider_keys({"action": "status"})
+        self.assertIn("gemini: not set", out)
+        self.assertIn("ollama_cloud: not set", out)
+
+    def test_add_and_status_masked(self):
+        out = self.web.provider_keys({"action": "add", "provider": "gemini",
+                                      "key": "AIzaFakeKey1234567890"})
+        self.assertIn("Added gemini key", out)
+        self.assertNotIn("AIzaFakeKey1234567890", out)  # never echo full key
+        status = self.web.provider_keys({"action": "status"})
+        self.assertIn("gemini: set (AIza...90)", status)
+
+    def test_add_rejects_unknown_provider(self):
+        out = self.web.provider_keys({"action": "add", "provider": "nope",
+                                      "key": "x" * 20})
+        self.assertIn("Unknown provider", out)
+
+    def test_add_rejects_short_key(self):
+        out = self.web.provider_keys({"action": "add", "provider": "groq",
+                                      "key": "short"})
+        self.assertIn("too short", out)
+
+    def test_registered_and_risky(self):
+        from aria.tools.registry import RISKY_TOOLS
+        reg = make_registry()
+        self.assertIn("provider_keys", set(reg.tool_names()))
+        self.assertIn("provider_keys", RISKY_TOOLS)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
