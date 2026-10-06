@@ -4,12 +4,18 @@ import argparse
 import asyncio
 import os
 import sys
+import threading
 
 from aria.core.config import Config
 from aria.core.state import AgentState
 from aria.core.event_loop import run
 from aria.first_run import first_run_done, run_first_run_wizard
 from aria import pricecheck as _pricecheck
+
+try:
+    from aria.speech.speak import speak as _speak
+except Exception:
+    _speak = None
 
 # Repo root for asset/data checks.
 _REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -73,7 +79,24 @@ def main(argv=None):
         for p in problems:
             print(f"  - {p}")
             state.log_event("self_check", {"problem": p})  # HUD reads the ring
+    _greet()
     asyncio.run(run(state, config))
+
+
+def _greet() -> None:
+    """Startup greeting: say something, and say how to use her. Never raises."""
+    try:
+        print("[ARIA v2] Online. Type in this window and press Enter to talk to me.",
+              flush=True)
+        print("[ARIA v2] If your mic is connected, you can also just speak.",
+              flush=True)
+        print("[ARIA v2] Keys: O = OPS overlay | 1-7 = switch tabs | "
+              "H = commands | ESC = close overlay", flush=True)
+        if _speak is not None:
+            threading.Thread(target=_speak, args=("ARIA v2 online.",),
+                             daemon=True).start()
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

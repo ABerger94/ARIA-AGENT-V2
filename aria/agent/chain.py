@@ -175,6 +175,11 @@ class ProviderChain:
                  if s.api_key and not self.state.is_quarantined(s.name)]
         if not specs:
             n = len(self.config.provider_order)
+            keyed = [s for s in self.config.providers() if s.api_key]
+            if not keyed:
+                return ChainResult(ok=False, category=ErrorCategory.ALL_DOWN,
+                                   text="No API keys configured — add them to "
+                                        "aria_keys.json and I'll come online.")
             return ChainResult(ok=False, category=ErrorCategory.ALL_DOWN,
                                text=f"All {n} providers are rate-limited right now.")
 

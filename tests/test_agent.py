@@ -263,7 +263,7 @@ class TestChain(unittest.TestCase):
         res = _run(chain.execute([{"role": "user", "content": "hi"}]))
         self.assertFalse(res.ok)
         self.assertEqual(res.category, ErrorCategory.ALL_DOWN)
-        self.assertIn("2 providers", res.text)
+        self.assertIn("No API keys configured", res.text)
         self.assertEqual(client.calls, [])
 
     def test_all_quarantined_is_all_down(self):
@@ -477,11 +477,13 @@ class TestRunTurn(unittest.TestCase):
 
     def test_all_down_returns_honest_message(self):
         chain = FakeChain([ChainResult(ok=False, category=ErrorCategory.ALL_DOWN,
-                                       text="All 2 providers are rate-limited right now.")])
+                                       text="No API keys configured — add them to "
+                                            "aria_keys.json and I'll come online.")])
         out = run_turn("hello", self.state, self.cfg, "default",
                        self.cfg.default_model, chain=chain,
                        registry=FakeRegistry())
-        self.assertEqual(out, "All 2 providers are rate-limited right now.")
+        self.assertEqual(out, "No API keys configured — add them to "
+                              "aria_keys.json and I'll come online.")
 
     def test_bad_payload_returns_honest_message(self):
         chain = FakeChain([ChainResult(ok=False, category=ErrorCategory.BAD_PAYLOAD,
