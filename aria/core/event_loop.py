@@ -25,9 +25,6 @@ HAS_VISOR = VisorRenderer is not None
 cv2 = _optional_module("cv2")
 HAS_CV2 = cv2 is not None
 
-OpsOverlay = _optional_attr("aria.ui.ops", "OpsOverlay")
-HAS_OPS = OpsOverlay is not None
-
 listen_once = _optional_attr("aria.speech.listen", "listen_once")
 TaskClassifier = _optional_attr("aria.agent.router", "TaskClassifier")
 run_turn = _optional_attr("aria.agent", "run_turn")
@@ -61,26 +58,43 @@ async def _render_loop(state, config):
         frame = await asyncio.to_thread(renderer.draw_frame)
         cv2.imshow("ARIA", frame)
         key = cv2.waitKey(1) & 0xFF
-        _route_key(key, state)
+        _route_key(key, state, renderer)
         await asyncio.sleep(max(0.0, frame_delay))
 
 
-def _route_key(key: int, state) -> None:
-    """Route render-task keys: O/ESC toggles the OPS overlay, 1-7 switch tabs."""
-    if OpsOverlay is None:
-        return
+def _route_key(key: int, state, renderer=None) -> None:
+    """Route render-task keys.
+
+    O/ESC toggles the OPS overlay, 1-7 switch its tabs, H toggles the
+    commands overlay. Uses the visor's persistent OpsOverlay — never a
+    throwaway instance.
+    """
+    ops = getattr(renderer, "ops", None)
     if key in (27, ord("o"), ord("O")):
+        if ops is None:
+            return
         try:
-            overlay = OpsOverlay(state)
-            if state.current_mode == "OPS_OVERLAY":
-                overlay.close()
+            if ops.is_open:
+                ops.close()
             else:
-                overlay.open()
+                ops.open()
         except Exception:
             pass
     elif ord("1") <= key <= ord("7"):
+        if ops is None:
+            return
         try:
-            OpsOverlay(state).select_tab(key - ord("1"))
+            ops.set_tab(key - ord("1"))
+        except Exception:
+            pass
+    elif key in (ord("h"), ord("H")):
+        if renderer is None:
+            return
+        try:
+            if getattr(renderer, "_show_commands", False):
+                renderer.hide_commands()
+            else:
+                renderer.show_commands()
         except Exception:
             pass
 

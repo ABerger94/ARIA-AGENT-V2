@@ -223,13 +223,14 @@ class TestVectorSearch(unittest.TestCase):
         self.assertEqual(hits[0]["category"], "notes")
         self.assertLessEqual(hits[0]["similarity"], 1.0)
 
-    def test_empty_when_embed_fails(self):
+    def test_none_when_embed_fails(self):
         db = _tmp_db(self)
         with mock.patch.object(vector_mod, "embed", return_value=[]):
             self.assertFalse(vector_mod.index_text("m1", "anything",
                                                    db_path=db))
-            self.assertEqual(search_memory_semantic("anything", db_path=db),
-                             [])
+            # None (not []) signals "embeddings unavailable" so callers
+            # fall back to keyword search.
+            self.assertIsNone(search_memory_semantic("anything", db_path=db))
 
     def test_embed_real_failure_returns_empty(self):
         # No stub: localhost:11434 is not running in CI, so this must

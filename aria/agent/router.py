@@ -17,7 +17,10 @@ class TaskClassifier:
     CODE_VERBS = ("edit", "write", "fix", "debug", "refactor", "rewrite",
                   "implement", "patch")
     CODE_NOUNS = ("code", "script", "function", "bug", "traceback", ".py",
-                  "ops_screen", "hud")
+                  "ops_screen", "hud",
+                  # language names: "write python ..." is a code task
+                  "python", "javascript", "typescript", "java", "rust",
+                  "golang", "sql", "c++", "c#")
     CODE_PHRASES = ("her code", "your code", "ops_screen.py", "the ops code")
 
     @classmethod

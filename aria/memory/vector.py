@@ -7,7 +7,8 @@ used by memory.store (schema is created there).
 
 Contract: every public function NEVER raises. ``embed`` returns [] when
 Ollama is unreachable or returns garbage; ``search_memory_semantic``
-returns [] when embeddings are unavailable.
+returns None when embeddings are unavailable (so callers fall back to
+keyword search) and [] when embeddings work but nothing matches.
 """
 
 from __future__ import annotations
@@ -103,17 +104,19 @@ def _cosine(a: List[float], b: List[float]) -> float:
 
 
 def search_memory_semantic(query: str, limit: int = 5,
-                           db_path: Optional[str] = None) -> List[Dict[str, Any]]:
+                           db_path: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
     """Rank stored vectors by cosine similarity to the query embedding.
 
     Returns a list of dicts: {category, key, value, similarity}, best first,
     joined against the kv table so callers get the memory text too. Returns
-    [] when embeddings are unavailable or nothing matches. Never raises.
+    None when embeddings are unavailable (Ollama down) so callers can fall
+    back to keyword search; returns [] when embeddings work but nothing
+    matches. Never raises.
     """
     try:
         qvec = embed(query)
         if not qvec:
-            return []
+            return None
         path = _resolve_db(db_path)
         scored: List[Dict[str, Any]] = []
         with _VLOCK:

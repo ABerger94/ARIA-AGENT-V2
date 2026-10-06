@@ -296,22 +296,19 @@ class OpsOverlay:
         return None
 
     # -- draw -----------------------------------------------------------------
-    def draw(self, frame=None):
+    def draw(self):
         """Render the overlay; return a BGR numpy frame.
 
-        frame: optional BGR numpy base to draw over (visor frame); when None
-        a fresh 1280x720 canvas is created.
+        v1 parity (ops_screen.draw does ``canvas[:, :] = BG``): the overlay
+        always starts from a clear canvas so HUD panels never bleed through
+        tab content.
         """
         if _np is None or _Image is None or _ImageDraw is None:
             raise RuntimeError(
                 "ops.draw requires numpy and Pillow, which are not "
                 "installed in this environment."
             )
-        if frame is not None and getattr(frame, "ndim", 0) == 3:
-            base = _np.ascontiguousarray(frame[:, :, ::-1])  # BGR -> RGB
-            img = _Image.fromarray(base).resize((W, H)).convert("RGB")
-        else:
-            img = _Image.new("RGB", (W, H), BG)
+        img = _Image.new("RGB", (W, H), BG)
         d = _ImageDraw.Draw(img)
         self._clicks = []
         self._draw_tab_bar(d)

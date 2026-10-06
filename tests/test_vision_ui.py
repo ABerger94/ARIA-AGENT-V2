@@ -15,9 +15,11 @@ from types import SimpleNamespace
 from unittest import mock
 
 import numpy as np
+from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import aria.ui.visor as visor_mod
 from aria.vision import capture, pipeline
 from aria.vision.capture import (
     grab_screen,
@@ -161,38 +163,92 @@ class PipelineTests(unittest.TestCase):
 
 # ---------------------------------------------------------------- visor
 class VisorTests(unittest.TestCase):
+    MODES = ("IDLE", "LISTENING", "THINKING", "SPEAKING", "OPS_OVERLAY")
+
+    def _state_with_events(self, mode="IDLE"):
+        st = make_state(current_mode=mode)
+        st.event_ring.append({"t": 1728234567.0, "kind": "heard",
+                              "text": "hello aria"})
+        st.event_ring.append({"t": 1728234568.0, "kind": "tool",
+                              "name": "get_time"})
+        return st
+
     def test_draw_frame_valid_bgr_numpy(self):
         r = VisorRenderer(make_state())
         frame = r.draw_frame()
         self.assertIsInstance(frame, np.ndarray)
-        self.assertEqual(frame.shape, (600, 960, 3))
+        self.assertEqual(frame.shape, (720, 1280, 3))
         self.assertEqual(str(frame.dtype), "uint8")
-        # Non-blank: header text was drawn
-        self.assertGreater(frame.sum(), 0)
 
     def test_draw_frame_no_cv2_needed(self):
-        # PIL-only path: cv2 must not be required for a valid frame.
-        sys.modules.pop("cv2", None)
-        frame = VisorRenderer(make_state()).draw_frame()
+        # PIL-only path: nulling the guarded cv2 ref must still yield a
+        # valid frame (numpy channel reversal fallback).
+        real = visor_mod.cv2
+        visor_mod.cv2 = None
+        try:
+            frame = VisorRenderer(make_state()).draw_frame()
+        finally:
+            visor_mod.cv2 = real
         self.assertIsInstance(frame, np.ndarray)
-        self.assertEqual(frame.shape, (600, 960, 3))
+        self.assertEqual(frame.shape, (720, 1280, 3))
 
-    def test_modes_render(self):
-        for mode in ("IDLE", "THINKING", "SPEAKING", "OPS_OVERLAY"):
-            r = VisorRenderer(make_state(current_mode=mode))
-            frame = r.draw_frame()
-            self.assertEqual(frame.shape, (600, 960, 3))
+    def test_all_modes_render_with_variance(self):
+        for mode in self.MODES:
+            with self.subTest(mode=mode):
+                frame = VisorRenderer(self._state_with_events(mode)).draw_frame()
+                self.assertEqual(frame.shape, (720, 1280, 3))
+                var = float(frame.var())
+                self.assertGreater(var, 50.0,
+                                   f"mode {mode} frame looks blank (var={var})")
 
-    def test_subtitle_and_alert(self):
+    def test_modes_differ(self):
+        idle = VisorRenderer(self._state_with_events("IDLE")).draw_frame()
+        speaking = VisorRenderer(self._state_with_events("SPEAKING")).draw_frame()
+        self.assertFalse(np.array_equal(idle, speaking))
+
+    def test_subtitle_alert_commands(self):
         r = VisorRenderer(make_state(current_mode="THINKING"))
         r.set_subtitle("Working on your request, one moment.")
         r.set_alert("Loop-guard tripped: 5 identical tool calls in 10s.")
+        r.show_commands()
         frame = r.draw_frame()
-        self.assertEqual(frame.shape, (600, 960, 3))
+        self.assertEqual(frame.shape, (720, 1280, 3))
+        self.assertGreater(float(frame.var()), 50.0)
+        r.hide_commands()
         r.clear_alert()
         r.clear_subtitle()
+        self.assertFalse(r._show_commands)
         self.assertIsNone(r.alert)
         self.assertEqual(r.subtitle, "")
+
+    def test_ops_mode_delegates_to_overlay(self):
+        r = VisorRenderer(self._state_with_events("OPS_OVERLAY"))
+        self.assertIsNotNone(r.ops)
+        frame = r.draw_frame()
+        self.assertEqual(frame.shape, (720, 1280, 3))
+        self.assertGreater(float(frame.var()), 50.0)
+
+    def test_avatar_opt_in_stays_off_by_default(self):
+        r = VisorRenderer(make_state())
+        self.assertIsNone(r.avatar_style)
+        r.set_avatar_style("bogus")
+        self.assertIsNone(r.avatar_style)
+
+    def test_save_mode_pngs(self):
+        outdir = "/tmp/hud_modes"
+        os.makedirs(outdir, exist_ok=True)
+        for mode in ("idle", "listening", "thinking", "speaking", "ops"):
+            st_mode = "OPS_OVERLAY" if mode == "ops" else mode.upper()
+            r = VisorRenderer(self._state_with_events(st_mode))
+            if mode == "thinking":
+                r.set_subtitle("Working on your request, one moment.")
+            if mode == "speaking":
+                r.set_alert("Loop-guard tripped: demo banner.")
+            frame = r.draw_frame()
+            rgb = np.ascontiguousarray(frame[:, :, ::-1])
+            path = os.path.join(outdir, f"{mode}.png")
+            Image.fromarray(rgb).save(path)
+            self.assertTrue(os.path.getsize(path) > 1000)
 
 
 # ---------------------------------------------------------------- ops

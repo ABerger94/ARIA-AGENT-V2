@@ -136,7 +136,7 @@ class VisorAvatarWiringTests(unittest.TestCase):
         r = VisorRenderer(self._state())
         self.assertIsNone(r.avatar_style)
         frame = r.draw_frame()
-        self.assertEqual(frame.shape, (600, 960, 3))
+        self.assertEqual(frame.shape, (720, 1280, 3))
 
     def test_avatar_opt_in_and_clear(self):
         r = VisorRenderer(self._state(current_mode="THINKING"))
@@ -144,7 +144,7 @@ class VisorAvatarWiringTests(unittest.TestCase):
         self.assertEqual(r.avatar_style, "chassis")
         frame = r.draw_frame()
         self.assertIsInstance(frame, np.ndarray)
-        self.assertEqual(frame.shape, (600, 960, 3))
+        self.assertEqual(frame.shape, (720, 1280, 3))
         # invalid style ignored, current kept
         r.set_avatar_style("bogus")
         self.assertEqual(r.avatar_style, "chassis")
@@ -155,10 +155,10 @@ class VisorAvatarWiringTests(unittest.TestCase):
         r = VisorRenderer(self._state(), avatar_style="classic")
         r.set_subtitle("a subtitle occupies the corner")
         frame = r.draw_frame()
-        self.assertEqual(frame.shape, (600, 960, 3))
+        self.assertEqual(frame.shape, (720, 1280, 3))
         r.clear_subtitle()
         frame2 = r.draw_frame()
-        self.assertEqual(frame2.shape, (600, 960, 3))
+        self.assertEqual(frame2.shape, (720, 1280, 3))
         # avatar actually painted something different in the corner
         self.assertFalse(np.array_equal(frame, frame2))
 
